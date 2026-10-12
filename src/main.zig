@@ -15,44 +15,43 @@ pub fn main(init: std.process.Init) !void {
     while (arg_it.next()) |a| try args_list.append(allocator, a);
     const args = args_list.items;
 
-    var name: ?[]const u8 = null;
+    var config_path: []const u8 = "config.json";
     var in_path: ?[]const u8 = null;
-    var year: u16 = 0;
-    var month: u8 = 0;
 
     var i: usize = 1; // args[0] is the exe path
     while (i < args.len) : (i += 1) {
         const a = args[i];
-        if (std.mem.eql(u8, a, "--name")) {
+        if (std.mem.eql(u8, a, "--config")) {
             i += 1;
-            name = args[i];
+            config_path = args[i];
         } else if (std.mem.eql(u8, a, "--in")) {
             i += 1;
             in_path = args[i];
-        } else if (std.mem.eql(u8, a, "--year")) {
-            i += 1;
-            year = try std.fmt.parseInt(u16, args[i], 10);
-        } else if (std.mem.eql(u8, a, "--month")) {
-            i += 1;
-            month = try std.fmt.parseInt(u8, args[i], 10);
         } else {
             std.debug.print("unknown arg: {s}\n", .{a});
             return error.BadArgs;
         }
     }
 
-    if (name == null or in_path == null or year == 0 or month == 0) {
-        std.debug.print("usage: shifty --name <you> --year <y> --month <m> --in <csv>\n", .{});
+    if (in_path == null) {
+        std.debug.print("usage: shifty [--config config.json] --in <csv>\n", .{});
         return error.BadArgs;
     }
+
+    var parsed_cfg = core.config.load(allocator, init.io, config_path) catch |err| {
+        std.debug.print("config error ({s}): copy config.example.json to config.json and edit it\n", .{@errorName(err)});
+        return err;
+    };
+    defer parsed_cfg.deinit();
+    const cfg = parsed_cfg.value;
 
     // 0.17: fs API lives in std.Io; cwd + readFileAlloc in one call.
     const text = try std.Io.Dir.cwd().readFileAlloc(init.io, in_path.?, allocator, std.Io.Limit.limited(16 * 1024 * 1024));
 
     var result = core.parser_csv.parseCsv(allocator, text, .{
-        .name = name.?,
-        .year = year,
-        .month = month,
+        .name = cfg.name,
+        .year = cfg.year,
+        .month = cfg.month,
     }) catch |err| {
         std.debug.print("parse error: {s}\n", .{@errorName(err)});
         return err;
@@ -62,7 +61,7 @@ pub fn main(init: std.process.Init) !void {
     // Output via std.debug.print: verified-present symbol on both OSes.
     // (A proper buffered stdout helper lands as src/out.zig in Step 2,
     // once, with tests — instead of inline std.Io plumbing per file.)
-    std.debug.print("{d} shifts for {s}:\n", .{ result.shifts.items.len, name.? });
+    std.debug.print("{d} shifts for {s}:\n", .{ result.shifts.items.len, cfg.name });
     for (result.shifts.items) |s| {
         std.debug.print("  {s} {d:0>4}-{d:0>2}-{d:0>2}  {d:0>2}:{d:0>2} -> {d:0>2}:{d:0>2}{s}\n", .{
             s.weekdayOf(),

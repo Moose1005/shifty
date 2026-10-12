@@ -136,4 +136,22 @@ confirmed absent from GitHub tree); repo uses samples/synthetic-oct-2026.csv.
 
 NEXT: Step 2 — config.json loader (src/core/config.zig), wired into main.
 
+
+## 008 — 2026-10-12 — STEP 2 COMPLETE: config.json
+
+- src/core/config.zig: typed Config, load() returns std.json.Parsed(Config)
+  (ownership explicit — returning Config by value would dangle; the leak
+  checker caught this as a DESIGN bug, not just a missing deinit).
+- Fail-loud: missing file, typo'd key (ignore_unknown_fields=false), bad
+  month, negative reminder, empty required field. No defaults anywhere.
+- 5 new tests (10 total), all green, zero leaks.
+- main.zig: --name/--year/--month scaffolding flags replaced by
+  --config config.json; parser options come from cfg. config.json added to
+  .gitignore (it'll hold his real name/address locally).
+- CI run step now uses --config config.example.json (already Moe/Oct-shaped,
+  drives the synthetic sample).
+- Leak lesson: readFileAlloc's `text` buffer must be freed even though
+  parsed strings are copies (alloc_always) — allocator hygiene is per-buffer,
+  not per-logical-object.
+
 <!-- YOUR ENTRIES BELOW -->

@@ -27,7 +27,7 @@ jobs:
       - run: zig build
       - name: Run CLI (Linux)
         if: runner.os == 'Linux'
-        run: ./zig-out/bin/shifty --name Moe --year 2026 --month 10 --in "samples/synthetic-oct-2026.csv"
+        run: ./zig-out/bin/shifty --config config.example.json --in "samples/synthetic-oct-2026.csv"
       - name: Run CLI (Windows)
         if: runner.os == 'Windows'
-        run: .\zig-out\bin\shifty.exe --name Moe --year 2026 --month 10 --in "samples/synthetic-oct-2026.csv"
+        run: .\zig-out\bin\shifty.exe --config config.example.json --in "samples/synthetic-oct-2026.csv"

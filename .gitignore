@@ -1,4 +1,3 @@
-.zig-cache/
-zig-out/
-zig-pkg/
-*.o
+
+# local user config (never commit)
+config.json
