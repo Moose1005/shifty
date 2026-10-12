@@ -4,6 +4,7 @@
 
 const std = @import("std");
 const core = @import("core");
+const gcal_auth = @import("gcal/auth.zig");
 
 pub fn main(init: std.process.Init) !void {
     const allocator = init.arena.allocator();
@@ -17,6 +18,7 @@ pub fn main(init: std.process.Init) !void {
 
     var config_path: []const u8 = "config.json";
     var in_path: ?[]const u8 = null;
+    var auth_probe = false;
 
     var i: usize = 1; // args[0] is the exe path
     while (i < args.len) : (i += 1) {
@@ -27,14 +29,16 @@ pub fn main(init: std.process.Init) !void {
         } else if (std.mem.eql(u8, a, "--in")) {
             i += 1;
             in_path = args[i];
+        } else if (std.mem.eql(u8, a, "--auth-probe")) {
+            auth_probe = true;
         } else {
             std.debug.print("unknown arg: {s}\n", .{a});
             return error.BadArgs;
         }
     }
 
-    if (in_path == null) {
-        std.debug.print("usage: shifty [--config config.json] --in <csv>\n", .{});
+    if (in_path == null and !auth_probe) {
+        std.debug.print("usage: shifty [--config config.json] --in <csv> [--auth-probe]\n", .{});
         return error.BadArgs;
     }
 
@@ -44,6 +48,15 @@ pub fn main(init: std.process.Init) !void {
     };
     defer parsed_cfg.deinit();
     const cfg = parsed_cfg.value;
+
+    if (auth_probe) {
+        const tok = gcal_auth.accessToken(allocator, init.io, cfg.service_account_key) catch |err| {
+            std.debug.print("AUTH FAILED: {s}\n", .{@errorName(err)});
+            return err;
+        };
+        std.debug.print("AUTH OK — token type {s}, expires in {d}s\n", .{ tok.token_type, tok.expires_in });
+        return;
+    }
 
     // 0.17: fs API lives in std.Io; cwd + readFileAlloc in one call.
     const text = try std.Io.Dir.cwd().readFileAlloc(init.io, in_path.?, allocator, std.Io.Limit.limited(16 * 1024 * 1024));

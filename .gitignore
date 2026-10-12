@@ -1,3 +1,10 @@
 
 # local user config (never commit)
 config.json
+
+# google oauth client secret (never commit)
+client_secret*.json
+
+# google service account keys (never commit)
+*sa-key*.json
+shifty-*.json

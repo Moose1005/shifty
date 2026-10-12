@@ -4,7 +4,24 @@
   "month": 10,
   "office_address": "123 Example St, City",
   "timezone": "America/Toronto",
-  "reminders_minutes": [1440, 0, 60],
+  "reminders_minutes": [
+    1440,
+    0,
+    60
+  ],
   "calendar_id": "primary",
-  "palette": ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11"]
+  "palette": [
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7",
+    "8",
+    "9",
+    "10",
+    "11"
+  ],
+  "service_account_key": "sa-key.json"
 }

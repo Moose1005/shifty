@@ -20,6 +20,7 @@ pub const Config = struct {
     reminders_minutes: []const i32, // e.g. {1440, 0, 60} = day before, day of, 1h before
     calendar_id: []const u8, // "primary" or a calendar's email-style id
     palette: []const []const u8, // Google colorId strings "1".."11"
+    service_account_key: []const u8, // path to the SA JSON key (never commit)
 
     pub fn validate(self: Config) Error!void {
         if (self.name.len == 0) return Error.InvalidConfig;
@@ -28,6 +29,7 @@ pub const Config = struct {
         if (self.timezone.len == 0) return Error.InvalidConfig;
         if (self.calendar_id.len == 0) return Error.InvalidConfig;
         if (self.palette.len == 0) return Error.InvalidConfig;
+        if (self.service_account_key.len == 0) return Error.InvalidConfig;
         for (self.reminders_minutes) |m| {
             if (m < 0) return Error.InvalidConfig;
         }
@@ -64,6 +66,7 @@ test "validate rejects bad month" {
         .reminders_minutes = &.{1440, 0, 60},
         .calendar_id = "primary",
         .palette = &.{"1"},
+        .service_account_key = "sa-key.json",
     };
     try std.testing.expectError(Error.InvalidConfig, c.validate());
 }
@@ -78,6 +81,7 @@ test "validate rejects negative reminder" {
         .reminders_minutes = &.{-5},
         .calendar_id = "primary",
         .palette = &.{"1"},
+        .service_account_key = "sa-key.json",
     };
     try std.testing.expectError(Error.InvalidConfig, c.validate());
 }

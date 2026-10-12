@@ -154,4 +154,57 @@ NEXT: Step 2 — config.json loader (src/core/config.zig), wired into main.
   parsed strings are copies (alloc_always) — allocator hygiene is per-buffer,
   not per-logical-object.
 
+
+## 009 — 2026-10-12 — Run 11 green on both OSes; auth path decided: OAuth
+
+Step 2 CI: success (ubuntu + windows). Auth design decision — service
+account vs OAuth2 installed-app: chose OAUTH. Reasons: (1) user wants to see
+the complexity for real (the journey); (2) public repo means anyone can clone
++ drop in their own Google Cloud OAuth client and use shifty as-is — generic
+tool, not a one-user wire-up. API keys were evaluated and rejected: they
+identify the app, not a user, and cannot write to private calendars.
+
+Step 3 design (src/gcal/auth.zig):
+- config gains: oauth_client_json path (the desktop-client file downloaded
+  from Google Cloud), token_cache path (~/.config/shifty/token.json, 0600).
+- Flow: localhost listener on 127.0.0.1:<random port> -> open browser ->
+  catch ?code= -> POST oauth2.googleapis.com/token -> cache refresh_token
+  (access_type=offline, prompt=consent) -> refresh access tokens lazily.
+- CLI gains --write (default remains dry-run: print event JSON, touch nothing).
+  CI never passes --write, so green checks never touch a real calendar.
+- Open std questions for 0.17: HTTP client + TCP listener shapes post-std.Io
+  rework — research in sandbox with the compiler, not from memory.
+
+
+## 010 — 2026-10-12 — STEP 3a: service-account auth, RS256 hand-rolled
+
+Decision (009 follow-up): OAuth installed-app was abandoned — Google's
+verification/branding gauntlet (homepage domain registration, privacy policy
+review, 7-day testing tokens) is bureaucracy, not engineering. Service
+account chosen: user shares their calendar with the SA email; shifty mints
+JWTs signed with the SA key. Stateless: fresh access token per run, no cache,
+no refresh tokens.
+
+BUILT (all compiler-verified native + windows-gnu, RC=0 both):
+- src/gcal/rs256.zig — RSA PKCS#1 v1.5 signing from scratch because 0.17
+  DELETED public RSA from std (Certificate.rsa is verify-only). PEM decode
+  (standard base64 — url_safe was a real bug), minimal ASN.1 TLV walker for
+  PKCS#8 -> PKCS#1 (n, d), EMSA-PKCS1-v1_5 padding, modpow via
+  std.math.big.int.Managed. Unit test: textbook RSA 65^2753 mod 3233 = 2790.
+  std.math.big.int renames hit: initSet->constructor, initCopy->init+copy,
+  eqZero->eqlZero, toBuffer gone -> toStringAlloc(16) hex roundtrip.
+- src/gcal/auth.zig — JWT (iss/scope/aud/iat/exp) -> sign -> POST
+  grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer to token_uri.
+  Gotchas: JSON string \n escapes are ALREADY decoded by std.json (don't
+  re-unescape); google error field needs @"error" (keyword).
+- Clock saga: std.time.timestamp() deleted -> std.posix.clock_gettime breaks
+  on windows-gnu (clockid_t void) -> std.Io.Clock.realtime ALSO broken on
+  windows-gnu (std.c clock_gettime binding mismatch) -> final answer: plain
+  extern C time(), present in glibc + UCRT. linkLibC moved to
+  .link_libc = true on the module (Compile.linkLibC deleted).
+- --auth-probe flag: runs the flow, prints AUTH OK or google's raw error body.
+- Sandbox cannot reach oauth2.googleapis.com (egress allowlist; curl HTTP 000
+  proof) — live-fire verdict must come from the user's machine. Everything
+  short of the network call is proven.
+
 <!-- YOUR ENTRIES BELOW -->

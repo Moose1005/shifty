@@ -17,6 +17,7 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path("src/main.zig"),
             .target = target,
             .optimize = optimize,
+            .link_libc = true, // std.posix.clock_gettime needs libc on windows-gnu
             .imports = &.{ .{ .name = "core", .module = core } },
         }),
     });
