@@ -108,4 +108,32 @@ sandbox before a tmp wipe). Forced changes, each a real 0.17 std change:
 Sandbox lessons: /mnt is noexec, /tmp gets wiped between sessions — compiler
 now lives at ~/zig-x86_64-linux-0.17.0 with a tarball backup.
 
+
+## 007 — 2026-10-12 — STEP 1 COMPLETE: 0.17-verified end to end
+
+Full verification on real zig 0.17.0 (sandbox):
+- `zig build test` RC=0 (5/5)
+- native binary on real Oct 2026 export: 15 shifts, exact match to hand-verified table
+- native binary on synthetic sample: 5 shifts, exact match
+- `zig build -Dtarget=x86_64-windows-gnu` RC=0 -> shifty.exe cross-compiled from Linux
+
+The 0.17 stdout endgame: Io.File.Writer is concrete, has NO print; Writer
+interface plumbing (initInterface/drain) overkill for a CLI. std.debug.print
+verified-present on both OSes -> used for output. LESSON: std.Io rewrite is
+the deepest 0.17 break; Step 2 builds src/out.zig helper ONCE with tests
+instead of inline plumbing.
+
+Complete 0.14->0.17 migration roster: root_module build API (+b.args deleted),
+unmanaged ArrayList, DebugAllocator, std.Io.Writer/File (stdout plumbing),
+std.time.epoch.Date deleted (own civil Date + days_from_civil, incl. catching
+my own /146097 vs /400 bug via test), trimLeft->trimStart,
+readFileAlloc->Io.Dir.cwd().readFileAlloc(io, path, alloc, Limit.limited(n)),
+argsAlloc->main(init: std.process.Init) + Args.Iterator (std.os.argv and a
+std.process.args global: BOTH gone).
+
+Privacy: real schedule scrubbed from git history (filter-branch + force push,
+confirmed absent from GitHub tree); repo uses samples/synthetic-oct-2026.csv.
+
+NEXT: Step 2 — config.json loader (src/core/config.zig), wired into main.
+
 <!-- YOUR ENTRIES BELOW -->

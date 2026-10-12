@@ -1,21 +1,17 @@
 //! shifty — CLI entry point (Step 1: parse + print).
-//! Usage: shifty --name Moe --year 2026 --month 10 --in "2026 Schedule (Oct).csv"
+//! Usage: shifty --name Moe --year 2026 --month 10 --in "schedule.csv"
 //! TUI/GUI frontends will import the same `core` module later.
 
 const std = @import("std");
 const core = @import("core");
 
-pub fn main() !void {
-    var gpa = std.heap.DebugAllocator(.{}){};
-    defer _ = gpa.deinit();
-    const allocator = gpa.allocator();
+pub fn main(init: std.process.Init) !void {
+    const allocator = init.arena.allocator();
 
-    // 0.17: argsAlloc removed -> lazily-decoded iterator (WTF-16 -> UTF-8
-    // on demand). Collect into a slice so the parsing loop stays index-based.
-    var arg_it = try std.process.args.Iterator.initAllocator(std.process.args, allocator);
+    // Lazily-decoded args iterator (WTF-16 -> WTF-8 on Windows, handled by std).
+    var arg_it = try std.process.Args.Iterator.initAllocator(init.minimal.args, allocator);
     defer arg_it.deinit();
     var args_list: std.ArrayList([]const u8) = .empty;
-    defer args_list.deinit(allocator);
     while (arg_it.next()) |a| try args_list.append(allocator, a);
     const args = args_list.items;
 
@@ -24,7 +20,7 @@ pub fn main() !void {
     var year: u16 = 0;
     var month: u8 = 0;
 
-    var i: usize = 1;
+    var i: usize = 1; // args[0] is the exe path
     while (i < args.len) : (i += 1) {
         const a = args[i];
         if (std.mem.eql(u8, a, "--name")) {
@@ -50,10 +46,8 @@ pub fn main() !void {
         return error.BadArgs;
     }
 
-    var file = try std.fs.cwd().openFile(in_path.?, .{});
-    defer file.close();
-    const text = try file.readToEndAlloc(allocator, 16 * 1024 * 1024);
-    defer allocator.free(text);
+    // 0.17: fs API lives in std.Io; cwd + readFileAlloc in one call.
+    const text = try std.Io.Dir.cwd().readFileAlloc(init.io, in_path.?, allocator, std.Io.Limit.limited(16 * 1024 * 1024));
 
     var result = core.parser_csv.parseCsv(allocator, text, .{
         .name = name.?,
@@ -65,13 +59,12 @@ pub fn main() !void {
     };
     defer result.deinit(allocator);
 
-    var out_buf: [8192]u8 = undefined;
-    var out_file = std.fs.File.stdout();
-    var out_writer = out_file.writer(&out_buf);
-    const stdout = &out_writer;
-    try stdout.print("{d} shifts for {s}:\n", .{ result.shifts.items.len, name.? });
+    // Output via std.debug.print: verified-present symbol on both OSes.
+    // (A proper buffered stdout helper lands as src/out.zig in Step 2,
+    // once, with tests — instead of inline std.Io plumbing per file.)
+    std.debug.print("{d} shifts for {s}:\n", .{ result.shifts.items.len, name.? });
     for (result.shifts.items) |s| {
-        try stdout.print("  {s} {d:0>4}-{d:0>2}-{d:0>2}  {d:0>2}:{d:0>2} -> {d:0>2}:{d:0>2}{s}\n", .{
+        std.debug.print("  {s} {d:0>4}-{d:0>2}-{d:0>2}  {d:0>2}:{d:0>2} -> {d:0>2}:{d:0>2}{s}\n", .{
             s.weekdayOf(),
             s.date.year,
             s.date.month,
@@ -83,5 +76,4 @@ pub fn main() !void {
             if (s.isOvernight()) " (+1)" else "",
         });
     }
-    try out_writer.flush();
 }
